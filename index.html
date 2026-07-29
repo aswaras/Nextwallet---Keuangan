@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NexWallet - Modern Finance</title>
+    <meta name="description" content="Aplikasi keuangan pribadi & UMKM: catat transaksi, dompet, dan hutang piutang.">
+    <meta name="theme-color" content="#3b82f6">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NexWallet">
+
+    <!-- Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS Config via Script -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        theme: 'var(--color-theme)',
+                        'theme-light': 'var(--color-theme-light)',
+                        surface: 'var(--color-surface)',
+                        background: 'var(--color-background)',
+                        'text-main': 'var(--color-text-main)',
+                        'text-muted': 'var(--color-text-muted)',
+                        border: 'var(--color-border)',
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'glow': '0 0 20px var(--color-theme-light)',
+                    },
+                    borderRadius: { '2.5xl': '1.25rem', '3xl': '1.5rem' }
+                }
+            }
+        }
+    </script>
+
+    <!-- Icons & Charts -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --color-theme: #3b82f6;
+            --color-theme-light: rgba(59, 130, 246, 0.15);
+            --color-surface: #ffffff;
+            --color-background: #f3f4f6;
+            --color-text-main: #111827;
+            --color-text-muted: #6b7280;
+            --color-border: #e5e7eb;
+        }
+        .dark {
+            --color-surface: #1f2937;
+            --color-background: #111827;
+            --color-text-main: #f9fafb;
+            --color-text-muted: #9ca3af;
+            --color-border: #374151;
+        }
+        .theme-blue { --color-theme: #3b82f6; --color-theme-light: rgba(59, 130, 246, 0.15); }
+        .theme-emerald { --color-theme: #10b981; --color-theme-light: rgba(16, 185, 129, 0.15); }
+        .theme-purple { --color-theme: #8b5cf6; --color-theme-light: rgba(139, 92, 246, 0.15); }
+        .theme-orange { --color-theme: #f97316; --color-theme-light: rgba(249, 115, 22, 0.15); }
+        .theme-red { --color-theme: #ef4444; --color-theme-light: rgba(239, 68, 68, 0.15); }
+
+        body {
+            background-color: #0f172a;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', sans-serif;
+        }
+        #app-container {
+            width: 100%;
+            height: 100vh;
+            max-width: 430px;
+            background-color: var(--color-background);
+            color: var(--color-text-main);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease;
+        }
+        @media (min-width: 450px) {
+            #app-container {
+                height: 850px;
+                border-radius: 40px;
+                border: 8px solid #1e293b;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .dark .glass { background: rgba(31, 41, 55, 0.7); }
+
+        .fab-center { position: absolute; left: 50%; transform: translateX(-50%); top: -24px; }
+
+        /* Small non-blocking sync indicator */
+        #sync-indicator {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 90;
+            width: 26px;
+            height: 26px;
+            border-radius: 9999px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+        }
+        #sync-indicator.show { opacity: 1; transform: scale(1); }
+        #sync-indicator.spin i { animation: spin 0.9s linear infinite; }
+        #sync-indicator.ok i { color: #10b981; }
+        #sync-indicator.err i { color: #ef4444; }
+        #sync-indicator.off i { color: #9ca3af; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .skel { background: linear-gradient(90deg, var(--color-border) 25%, var(--color-background) 50%, var(--color-border) 75%); background-size: 200% 100%; animation: skel 1.4s ease-in-out infinite; }
+        @keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .empty-state { text-align: center; padding: 2rem 1rem; color: var(--color-text-muted); }
+
+        input, select, textarea { color: var(--color-text-main); }
+        ::placeholder { color: var(--color-text-muted); opacity: 0.7; }
+    </style>
+</head>
+<body class="antialiased">
+
+<div id="app-container">
+
+    <!-- Small background sync indicator (never blocks screen) -->
+    <div id="sync-indicator"><i data-lucide="loader-2" class="w-3.5 h-3.5 text-text-muted"></i></div>
+
+    <!-- ==================== VIEW: LOCK / PIN SCREEN ==================== -->
+    <div id="view-lock" class="absolute inset-0 bg-surface z-50 flex flex-col justify-between pt-20 pb-10 px-6 fade-in">
+        <div class="text-center flex flex-col items-center">
+            <div class="w-16 h-16 bg-theme-light text-theme rounded-2xl flex items-center justify-center mb-6">
+                <i data-lucide="wallet" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-2xl font-bold mb-2">NexWallet</h1>
+            <p class="text-text-muted mb-8" id="pin-subtitle">Masukkan PIN Anda</p>
+
+            <div class="flex gap-4 justify-center" id="pin-dots">
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+                <div class="w-4 h-4 rounded-full border-2 border-border pin-dot"></div>
+            </div>
+            <p id="pin-error" class="text-red-500 text-sm mt-4 opacity-0 transition-opacity">PIN Salah, coba lagi.</p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-y-6 gap-x-8 px-4 mt-auto">
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('1')">1</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('2')">2</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('3')">3</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('4')">4</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('5')">5</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('6')">6</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('7')">7</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('8')">8</button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('9')">9</button>
+            <button class="text-xl text-text-muted h-16 rounded-full hover:bg-background transition" onclick="Pin.biometric()">
+                <i data-lucide="fingerprint" class="mx-auto w-6 h-6"></i>
+            </button>
+            <button class="text-2xl font-semibold h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.enter('0')">0</button>
+            <button class="text-xl h-16 rounded-full hover:bg-background active:bg-border transition" onclick="Pin.delete()">
+                <i data-lucide="delete" class="mx-auto w-6 h-6"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== VIEW: MAIN APP ==================== -->
+    <div id="view-main" class="hidden flex-col h-full w-full relative">
+
+        <div id="pages-container" class="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pb-28">
+
+            <!-- PAGE 1: HOME -->
+            <div id="page-home" class="page-view p-6 fade-in hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-theme text-white flex items-center justify-center font-bold text-lg" id="avatar-initial">B</div>
+                        <div>
+                            <p class="text-sm text-text-muted leading-tight">Selamat datang,</p>
+                            <h2 class="font-bold text-lg leading-tight" id="user-name-display">Pengguna</h2>
+                        </div>
+                    </div>
+                    <button class="w-10 h-10 rounded-full bg-surface shadow-sm border border-border flex items-center justify-center relative" onclick="Nav.switch('page-settings')">
+                        <i data-lucide="bell" class="w-5 h-5 text-text-muted"></i>
+                        <span class="absolute top-2 right-2 w-2 h-2 bg-theme rounded-full"></span>
+                    </button>
+                </div>
+
+                <div class="bg-theme rounded-3xl p-6 text-white shadow-glow mb-6 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
+                    <p class="text-white/80 text-sm font-medium mb-1">Total Saldo</p>
+                    <h1 class="text-3xl font-bold mb-6 tracking-tight" id="total-balance">Rp 0</h1>
+                    <div class="flex justify-between items-end">
+                        <div>
+                            <p class="text-white/60 text-xs mb-1">Bulan Ini</p>
+                            <div class="flex gap-4">
+                                <div>
+                                    <div class="flex items-center gap-1 text-xs text-emerald-300"><i data-lucide="arrow-down-left" class="w-3 h-3"></i> Pemasukan</div>
+                                    <p class="font-semibold" id="month-income">Rp 0</p>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-1 text-xs text-red-300"><i data-lucide="arrow-up-right" class="w-3 h-3"></i> Pengeluaran</div>
+                                    <p class="font-semibold" id="month-expense">Rp 0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="bg-white/20 hover:bg-white/30 p-2 rounded-xl backdrop-blur-sm transition" onclick="UI.toggleBalanceVisibility()">
+                            <i data-lucide="eye" class="w-5 h-5" id="balance-eye-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-4 gap-4 mb-8">
+                    <button class="flex flex-col items-center gap-2" onclick="TrxModal.open('income')">
+                        <div class="w-12 h-12 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center text-emerald-500"><i data-lucide="arrow-down-to-line" class="w-6 h-6"></i></div>
+                        <span class="text-xs font-medium text-text-muted">Terima</span>
+                    </button>
+                    <button class="flex flex-col items-center gap-2" onclick="TrxModal.open('expense')">
+                        <div class="w-12 h-12 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center text-red-500"><i data-lucide="arrow-up-from-line" class="w-6 h-6"></i></div>
+                        <span class="text-xs font-medium text-text-muted">Kirim</span>
+                    </button>
+                    <button class="flex flex-col items-center gap-2" onclick="Nav.switch('page-debts')">
+                        <div class="w-12 h-12 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center text-theme"><i data-lucide="users" class="w-6 h-6"></i></div>
+                        <span class="text-xs font-medium text-text-muted">Hutang</span>
+                    </button>
+                    <button class="flex flex-col items-center gap-2" onclick="WalletModal.openList()">
+                        <div class="w-12 h-12 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center text-purple-500"><i data-lucide="wallet-cards" class="w-6 h-6"></i></div>
+                        <span class="text-xs font-medium text-text-muted">Dompet</span>
+                    </button>
+                </div>
+
+                <div class="mb-8">
+                    <h3 class="font-bold text-lg mb-4">Statistik Bulanan</h3>
+                    <div class="bg-surface p-4 rounded-3xl shadow-soft border border-border">
+                        <canvas id="mainChart" height="180"></canvas>
+                    </div>
+                </div>
+
+                <div class="mb-8">
+                    <div class="flex justify-between items-end mb-4">
+                        <h3 class="font-bold text-lg">Dompet Saya</h3>
+                        <button class="text-theme text-sm font-medium" onclick="WalletModal.openList()">Kelola</button>
+                    </div>
+                    <div class="flex gap-4 overflow-x-auto no-scrollbar pb-2" id="wallet-list-horizontal"></div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-end mb-4">
+                        <h3 class="font-bold text-lg">Transaksi Terbaru</h3>
+                        <button class="text-theme text-sm font-medium" onclick="Nav.switch('page-transactions')">Lihat Semua</button>
+                    </div>
+                    <div class="flex flex-col gap-3" id="recent-transactions-list"></div>
+                </div>
+            </div>
+
+            <!-- PAGE 2: TRANSACTIONS -->
+            <div id="page-transactions" class="page-view p-6 fade-in hidden">
+                <h2 class="text-2xl font-bold mb-6">Catatan Transaksi</h2>
+                <div class="flex gap-2 mb-6">
+                    <div class="flex-1 bg-surface border border-border rounded-2xl px-4 py-3 flex items-center gap-2 shadow-sm">
+                        <i data-lucide="search" class="w-5 h-5 text-text-muted"></i>
+                        <input type="text" id="trx-search-input" placeholder="Cari transaksi..." class="bg-transparent border-none outline-none w-full text-sm text-text-main placeholder-text-muted" oninput="TrxList.render()">
+                    </div>
+                </div>
+                <div class="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-1" id="trx-filter-chips">
+                    <button class="px-4 py-1.5 rounded-full bg-theme text-white text-sm font-medium whitespace-nowrap" data-filter="all" onclick="TrxList.setFilter('all', this)">Semua</button>
+                    <button class="px-4 py-1.5 rounded-full bg-surface border border-border text-text-muted text-sm font-medium whitespace-nowrap" data-filter="income" onclick="TrxList.setFilter('income', this)">Pemasukan</button>
+                    <button class="px-4 py-1.5 rounded-full bg-surface border border-border text-text-muted text-sm font-medium whitespace-nowrap" data-filter="expense" onclick="TrxList.setFilter('expense', this)">Pengeluaran</button>
+                    <button class="px-4 py-1.5 rounded-full bg-surface border border-border text-text-muted text-sm font-medium whitespace-nowrap" data-filter="month" onclick="TrxList.setFilter('month', this)">Bulan Ini</button>
+                </div>
+                <div class="flex flex-col gap-4" id="full-transactions-list"></div>
+            </div>
+
+            <!-- PAGE 3: DEBTS -->
+            <div id="page-debts" class="page-view p-6 fade-in hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Hutang Piutang</h2>
+                    <button class="w-10 h-10 rounded-full bg-theme-light text-theme flex items-center justify-center" onclick="DebtModal.openAdd()">
+                        <i data-lucide="user-plus" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <div class="bg-surface border border-border p-4 rounded-3xl shadow-sm">
+                        <div class="flex items-center gap-2 text-red-500 mb-2"><i data-lucide="arrow-up-right" class="w-4 h-4"></i><span class="text-xs font-semibold uppercase tracking-wider">Hutang Saya</span></div>
+                        <h3 class="font-bold text-lg" id="total-hutang">Rp 0</h3>
+                    </div>
+                    <div class="bg-surface border border-border p-4 rounded-3xl shadow-sm">
+                        <div class="flex items-center gap-2 text-emerald-500 mb-2"><i data-lucide="arrow-down-left" class="w-4 h-4"></i><span class="text-xs font-semibold uppercase tracking-wider">Piutang (Dihutangi)</span></div>
+                        <h3 class="font-bold text-lg" id="total-piutang">Rp 0</h3>
+                    </div>
+                </div>
+                <div class="flex p-1 bg-surface border border-border rounded-xl mb-6">
+                    <button class="flex-1 py-2 text-sm font-medium rounded-lg bg-theme text-white shadow-sm" data-debt-filter="all" onclick="DebtList.setFilter('all', this)">Semua</button>
+                    <button class="flex-1 py-2 text-sm font-medium rounded-lg text-text-muted" data-debt-filter="unpaid" onclick="DebtList.setFilter('unpaid', this)">Belum Lunas</button>
+                </div>
+                <div class="flex flex-col gap-4" id="debt-list"></div>
+            </div>
+
+            <!-- PAGE 4: SETTINGS -->
+            <div id="page-settings" class="page-view p-6 fade-in hidden">
+                <h2 class="text-2xl font-bold mb-6">Pengaturan</h2>
+
+                <div class="bg-surface border border-border rounded-3xl p-4 flex items-center gap-4 shadow-sm mb-6">
+                    <div class="w-14 h-14 rounded-full bg-theme text-white flex items-center justify-center font-bold text-xl" id="settings-avatar">B</div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-lg" id="settings-user-name">Pengguna</h3>
+                        <p class="text-sm text-text-muted">Pemilik UMKM</p>
+                    </div>
+                    <button class="p-2 text-text-muted" onclick="Settings.editName()"><i data-lucide="edit-3" class="w-5 h-5"></i></button>
+                </div>
+
+                <div class="bg-surface border border-border rounded-3xl overflow-hidden shadow-sm mb-6">
+                    <div class="p-4 flex justify-between items-center border-b border-border">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-text-main"><i data-lucide="moon" class="w-4 h-4"></i></div>
+                            <span class="font-medium">Mode Gelap</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" id="theme-toggle" onchange="Settings.toggleDark()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-theme"></div>
+                        </label>
+                    </div>
+                    <div class="p-4">
+                        <p class="font-medium mb-3 text-sm">Warna Tema</p>
+                        <div class="flex gap-3">
+                            <button class="w-8 h-8 rounded-full bg-blue-500 border-2 border-transparent focus:border-text-main" onclick="Settings.setColor('blue')"></button>
+                            <button class="w-8 h-8 rounded-full bg-emerald-500 border-2 border-transparent focus:border-text-main" onclick="Settings.setColor('emerald')"></button>
+                            <button class="w-8 h-8 rounded-full bg-purple-500 border-2 border-transparent focus:border-text-main" onclick="Settings.setColor('purple')"></button>
+                            <button class="w-8 h-8 rounded-full bg-orange-500 border-2 border-transparent focus:border-text-main" onclick="Settings.setColor('orange')"></button>
+                            <button class="w-8 h-8 rounded-full bg-red-500 border-2 border-transparent focus:border-text-main" onclick="Settings.setColor('red')"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-surface border border-border rounded-3xl overflow-hidden shadow-sm mb-6">
+                    <button class="w-full p-4 flex justify-between items-center border-b border-border active:bg-background" onclick="PinChangeModal.open()">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-theme-light text-theme flex items-center justify-center"><i data-lucide="lock" class="w-4 h-4"></i></div>
+                            <span class="font-medium">Ganti PIN</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-text-muted"></i>
+                    </button>
+                    <button class="w-full p-4 flex justify-between items-center border-b border-border active:bg-background" onclick="DataIO.openExportSheet()">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 flex items-center justify-center"><i data-lucide="download" class="w-4 h-4"></i></div>
+                            <span class="font-medium">Export Data (Excel/PDF)</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-text-muted"></i>
+                    </button>
+                    <button class="w-full p-4 flex justify-between items-center border-b border-border active:bg-background" onclick="document.getElementById('import-file-input').click()">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-500 flex items-center justify-center"><i data-lucide="upload" class="w-4 h-4"></i></div>
+                            <span class="font-medium">Import Data</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-text-muted"></i>
+                    </button>
+                    <input type="file" id="import-file-input" accept=".json" class="hidden" onchange="DataIO.importFile(event)">
+                    <button class="w-full p-4 flex justify-between items-center active:bg-background" onclick="DataIO.openBackupSheet()">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex items-center justify-center"><i data-lucide="database" class="w-4 h-4"></i></div>
+                            <span class="font-medium">Backup & Restore</span>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-5 h-5 text-text-muted"></i>
+                    </button>
+                </div>
+
+                <div class="bg-surface border border-border rounded-3xl overflow-hidden shadow-sm mb-6">
+                    <div class="p-4 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center"><i data-lucide="server" class="w-4 h-4"></i></div>
+                            <span class="font-medium">URL Backend (Apps Script)</span>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-4 flex gap-2">
+                        <input type="text" id="api-url-input" placeholder="https://script.google.com/macros/s/xxx/exec" class="flex-1 bg-background rounded-xl p-3 text-xs border-none outline-none">
+                        <button class="px-4 rounded-xl bg-theme text-white text-sm font-bold" onclick="Settings.saveApiUrl()">Simpan</button>
+                    </div>
+                </div>
+
+                <button class="w-full py-4 text-red-500 font-bold bg-red-50 dark:bg-red-900/10 rounded-2xl active:bg-red-100 transition" onclick="App.logout()">Keluar / Logout</button>
+                <p class="text-center text-text-muted text-xs mt-6">NexWallet v1.0.0</p>
+                <p class="text-center text-text-muted text-xs mt-1" id="pwa-install-hint"></p>
+            </div>
+
+        </div>
+
+        <!-- FLOATING BOTTOM NAVIGATION -->
+        <div class="absolute bottom-6 left-6 right-6 h-16 glass border border-border/50 rounded-3xl shadow-soft flex items-center justify-between px-2 z-40">
+            <button class="nav-item flex-1 flex flex-col items-center justify-center gap-1 h-full text-theme" onclick="Nav.switch('page-home', this)">
+                <i data-lucide="home" class="w-6 h-6"></i><span class="text-[10px] font-medium">Home</span>
+            </button>
+            <button class="nav-item flex-1 flex flex-col items-center justify-center gap-1 h-full text-text-muted hover:text-theme transition" onclick="Nav.switch('page-transactions', this)">
+                <i data-lucide="file-text" class="w-6 h-6"></i><span class="text-[10px] font-medium">Catatan</span>
+            </button>
+            <div class="flex-1 relative h-full flex justify-center">
+                <button class="fab-center w-14 h-14 bg-theme rounded-full shadow-glow flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-transform" onclick="UI.toggleBottomSheet('sheet-create')">
+                    <i data-lucide="plus" class="w-8 h-8"></i>
+                </button>
+            </div>
+            <button class="nav-item flex-1 flex flex-col items-center justify-center gap-1 h-full text-text-muted hover:text-theme transition" onclick="Nav.switch('page-debts', this)">
+                <i data-lucide="users" class="w-6 h-6"></i><span class="text-[10px] font-medium">Hutang</span>
+            </button>
+            <button class="nav-item flex-1 flex flex-col items-center justify-center gap-1 h-full text-text-muted hover:text-theme transition" onclick="Nav.switch('page-settings', this)">
+                <i data-lucide="settings" class="w-6 h-6"></i><span class="text-[10px] font-medium">Atur</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== OVERLAYS & MODALS ==================== -->
+    <div id="overlay-backdrop" class="absolute inset-0 bg-black/50 z-[60] hidden opacity-0 transition-opacity duration-300" onclick="UI.closeAllOverlays()"></div>
+
+    <!-- Bottom Sheet: CREATE MENU -->
+    <div id="sheet-create" class="absolute bottom-0 left-0 right-0 bg-surface rounded-t-3xl z-[70] transform translate-y-full transition-transform duration-300 flex flex-col">
+        <div class="w-12 h-1.5 bg-border rounded-full mx-auto my-3"></div>
+        <div class="p-6 grid grid-cols-3 gap-6">
+            <button class="flex flex-col items-center gap-3" onclick="UI.closeAllOverlays(); TrxModal.open('income')">
+                <div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><i data-lucide="arrow-down-to-line" class="w-7 h-7"></i></div>
+                <span class="text-xs font-semibold text-center">Tambah<br>Pemasukan</span>
+            </button>
+            <button class="flex flex-col items-center gap-3" onclick="UI.closeAllOverlays(); TrxModal.open('expense')">
+                <div class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center"><i data-lucide="arrow-up-from-line" class="w-7 h-7"></i></div>
+                <span class="text-xs font-semibold text-center">Tambah<br>Pengeluaran</span>
+            </button>
+            <button class="flex flex-col items-center gap-3" onclick="UI.closeAllOverlays(); DebtModal.openAdd()">
+                <div class="w-14 h-14 rounded-full bg-theme-light text-theme flex items-center justify-center"><i data-lucide="user-plus" class="w-7 h-7"></i></div>
+                <span class="text-xs font-semibold text-center">Catat<br>Hutang</span>
+            </button>
+            <button class="flex flex-col items-center gap-3" onclick="UI.closeAllOverlays(); WalletModal.openAdd()">
+                <div class="w-14 h-14 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"><i data-lucide="wallet" class="w-7 h-7"></i></div>
+                <span class="text-xs font-semibold text-center">Tambah<br>Dompet</span>
+            </button>
+            <button class="flex flex-col items-center gap-3" onclick="UI.closeAllOverlays(); TrxModal.open('expense', true)">
+                <div class="w-14 h-14 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center"><i data-lucide="zap" class="w-7 h-7"></i></div>
+                <span class="text-xs font-semibold text-center">Catat<br>Cepat</span>
+            </button>
+        </div>
+        <div class="pb-10"></div>
+    </div>
+
+    <!-- FULL MODAL: ADD/EDIT TRANSACTION -->
+    <div id="modal-add-transaction" class="absolute inset-0 bg-surface z-[80] hidden flex-col slide-up">
+        <div class="flex justify-between items-center p-4 border-b border-border">
+            <button onclick="UI.closeModal('modal-add-transaction')" class="p-2 text-text-muted"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <h3 class="font-bold text-lg" id="modal-trx-title">Tambah Transaksi</h3>
+            <button id="btn-delete-trx" class="p-2 text-red-500 hidden" onclick="TrxModal.remove()"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+            <div class="w-10" id="trx-spacer"></div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
+            <div class="flex p-1 bg-background rounded-xl mb-6">
+                <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-tab-income" onclick="TrxModal.setTab('income')">Pemasukan</button>
+                <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-tab-expense" onclick="TrxModal.setTab('expense')">Pengeluaran</button>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2 uppercase tracking-wider">Nominal</label>
+                <div class="flex items-center text-3xl font-bold text-text-main border-b-2 border-border pb-2 focus-within:border-theme transition">
+                    <span class="text-text-muted mr-2">Rp</span>
+                    <input type="number" placeholder="0" class="w-full bg-transparent border-none outline-none" id="input-amount">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-text-muted mb-2">Tanggal</label>
+                    <div class="bg-background rounded-xl p-3 flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-4 h-4 text-text-muted"></i>
+                        <input type="date" id="input-date" class="bg-transparent border-none outline-none text-sm w-full">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-text-muted mb-2">Jam</label>
+                    <div class="bg-background rounded-xl p-3 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-text-muted"></i>
+                        <input type="time" id="input-time" class="bg-transparent border-none outline-none text-sm w-full">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Dompet</label>
+                <select class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none appearance-none" id="select-wallet"></select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Kategori</label>
+                <select class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none appearance-none" id="select-category"></select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Catatan</label>
+                <textarea class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none resize-none h-20" id="input-desc" placeholder="Tulis keterangan tambahan..."></textarea>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Foto Struk (Opsional)</label>
+                <input type="file" accept="image/*" capture="environment" id="input-photo" class="hidden" onchange="TrxModal.onPhotoSelected(event)">
+                <button class="w-full border-2 border-dashed border-border rounded-2xl h-24 flex flex-col items-center justify-center text-text-muted hover:bg-background hover:text-theme transition overflow-hidden relative" id="btn-photo" onclick="document.getElementById('input-photo').click()">
+                    <i data-lucide="camera" class="w-6 h-6 mb-1"></i>
+                    <span class="text-xs" id="photo-label">Ambil Foto</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-border bg-surface">
+            <button class="w-full py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="TrxModal.save()">Simpan Transaksi</button>
+        </div>
+    </div>
+
+    <!-- FULL MODAL: TRANSACTION DETAIL -->
+    <div id="modal-trx-detail" class="absolute inset-0 bg-black/40 z-[85] hidden items-end" onclick="if(event.target===this) UI.closeModal('modal-trx-detail')">
+        <div class="bg-surface w-full rounded-t-3xl p-6 slide-up" onclick="event.stopPropagation()">
+            <div class="w-12 h-1.5 bg-border rounded-full mx-auto mb-6"></div>
+            <div id="trx-detail-body"></div>
+            <div class="flex gap-3 mt-6">
+                <button class="flex-1 py-3 rounded-2xl bg-background font-bold" onclick="TrxModal.editFromDetail()">Edit</button>
+                <button class="flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold" onclick="TrxModal.removeFromDetail()">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FULL MODAL: WALLETS LIST -->
+    <div id="modal-wallet-list" class="absolute inset-0 bg-surface z-[80] hidden flex-col slide-up">
+        <div class="flex justify-between items-center p-4 border-b border-border">
+            <button onclick="UI.closeModal('modal-wallet-list')" class="p-2 text-text-muted"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <h3 class="font-bold text-lg">Dompet Saya</h3>
+            <button class="p-2 text-theme" onclick="WalletModal.openAdd()"><i data-lucide="plus" class="w-5 h-5"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 no-scrollbar flex flex-col gap-3" id="wallet-full-list"></div>
+    </div>
+
+    <!-- FULL MODAL: ADD/EDIT WALLET -->
+    <div id="modal-wallet-form" class="absolute inset-0 bg-black/40 z-[85] hidden items-end" onclick="if(event.target===this) UI.closeModal('modal-wallet-form')">
+        <div class="bg-surface w-full rounded-t-3xl p-6 slide-up" onclick="event.stopPropagation()">
+            <div class="w-12 h-1.5 bg-border rounded-full mx-auto mb-6"></div>
+            <h3 class="font-bold text-lg mb-4" id="wallet-form-title">Tambah Dompet</h3>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Nama Dompet</label>
+                <input type="text" id="wallet-name" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="Contoh: BCA, Cash, GoPay">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Jenis</label>
+                <select id="wallet-type" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none">
+                    <option>Bank</option><option>Cash</option><option>E-Wallet</option><option>Investasi</option><option>Lainnya</option>
+                </select>
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Saldo Awal</label>
+                <input type="number" id="wallet-balance" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0">
+            </div>
+            <div class="flex gap-3">
+                <button id="btn-delete-wallet" class="hidden flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold" onclick="WalletModal.remove()">Hapus</button>
+                <button class="flex-1 py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="WalletModal.save()">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FULL MODAL: ADD/EDIT DEBT -->
+    <div id="modal-debt-form" class="absolute inset-0 bg-black/40 z-[85] hidden items-end" onclick="if(event.target===this) UI.closeModal('modal-debt-form')">
+        <div class="bg-surface w-full rounded-t-3xl p-6 slide-up max-h-[85%] overflow-y-auto no-scrollbar" onclick="event.stopPropagation()">
+            <div class="w-12 h-1.5 bg-border rounded-full mx-auto mb-6"></div>
+            <h3 class="font-bold text-lg mb-4" id="debt-form-title">Catat Hutang/Piutang</h3>
+            <div class="flex p-1 bg-background rounded-xl mb-4">
+                <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-debt-hutang" onclick="DebtModal.setType('hutang')">Hutang Saya</button>
+                <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-debt-piutang" onclick="DebtModal.setType('piutang')">Piutang</button>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Nama</label>
+                <input type="text" id="debt-name" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="Nama orang/pihak">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Nominal</label>
+                <input type="number" id="debt-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Jatuh Tempo</label>
+                <input type="date" id="debt-duedate" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none">
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Catatan</label>
+                <textarea id="debt-note" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none resize-none h-16"></textarea>
+            </div>
+            <div class="flex gap-3">
+                <button id="btn-delete-debt" class="hidden flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold" onclick="DebtModal.remove()">Hapus</button>
+                <button class="flex-1 py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="DebtModal.save()">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FULL MODAL: PAY DEBT -->
+    <div id="modal-debt-pay" class="absolute inset-0 bg-black/40 z-[86] hidden items-end" onclick="if(event.target===this) UI.closeModal('modal-debt-pay')">
+        <div class="bg-surface w-full rounded-t-3xl p-6 slide-up" onclick="event.stopPropagation()">
+            <div class="w-12 h-1.5 bg-border rounded-full mx-auto mb-6"></div>
+            <h3 class="font-bold text-lg mb-1">Bayar / Terima Pembayaran</h3>
+            <p class="text-sm text-text-muted mb-4" id="debt-pay-info"></p>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Jumlah Dibayar</label>
+                <input type="number" id="debt-pay-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0">
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Dompet Tujuan</label>
+                <select id="debt-pay-wallet" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none"></select>
+            </div>
+            <button class="w-full py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="DebtModal.pay()">Konfirmasi</button>
+        </div>
+    </div>
+
+    <!-- SHEET: EXPORT -->
+    <div id="sheet-export" class="absolute bottom-0 left-0 right-0 bg-surface rounded-t-3xl z-[70] transform translate-y-full transition-transform duration-300 flex flex-col">
+        <div class="w-12 h-1.5 bg-border rounded-full mx-auto my-3"></div>
+        <div class="p-6">
+            <h3 class="font-bold text-lg mb-4">Export Data</h3>
+            <button class="w-full p-4 flex items-center gap-3 bg-background rounded-2xl mb-3" onclick="DataIO.exportCsv()">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-500"></i>
+                <span class="font-medium text-sm">Export ke Excel (CSV)</span>
+            </button>
+            <button class="w-full p-4 flex items-center gap-3 bg-background rounded-2xl mb-3" onclick="DataIO.exportPdf()">
+                <i data-lucide="file-text" class="w-5 h-5 text-red-500"></i>
+                <span class="font-medium text-sm">Export ke PDF (Cetak)</span>
+            </button>
+        </div>
+        <div class="pb-10"></div>
+    </div>
+
+    <!-- SHEET: BACKUP/RESTORE -->
+    <div id="sheet-backup" class="absolute bottom-0 left-0 right-0 bg-surface rounded-t-3xl z-[70] transform translate-y-full transition-transform duration-300 flex flex-col">
+        <div class="w-12 h-1.5 bg-border rounded-full mx-auto my-3"></div>
+        <div class="p-6">
+            <h3 class="font-bold text-lg mb-4">Backup & Restore</h3>
+            <button class="w-full p-4 flex items-center gap-3 bg-background rounded-2xl mb-3" onclick="DataIO.backup()">
+                <i data-lucide="download-cloud" class="w-5 h-5 text-orange-500"></i>
+                <span class="font-medium text-sm">Backup Data (Download JSON)</span>
+            </button>
+            <button class="w-full p-4 flex items-center gap-3 bg-background rounded-2xl mb-3" onclick="document.getElementById('import-file-input').click()">
+                <i data-lucide="upload-cloud" class="w-5 h-5 text-purple-500"></i>
+                <span class="font-medium text-sm">Restore dari File</span>
+            </button>
+        </div>
+        <div class="pb-10"></div>
+    </div>
+
+    <!-- FULL MODAL: CHANGE PIN -->
+    <div id="modal-pin-change" class="absolute inset-0 bg-black/40 z-[85] hidden items-end" onclick="if(event.target===this) UI.closeModal('modal-pin-change')">
+        <div class="bg-surface w-full rounded-t-3xl p-6 slide-up" onclick="event.stopPropagation()">
+            <div class="w-12 h-1.5 bg-border rounded-full mx-auto mb-6"></div>
+            <h3 class="font-bold text-lg mb-4">Ganti PIN</h3>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">PIN Lama</label>
+                <input type="password" inputmode="numeric" maxlength="6" id="old-pin" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="******">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-text-muted mb-2">PIN Baru (6 digit)</label>
+                <input type="password" inputmode="numeric" maxlength="6" id="new-pin" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="******">
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Ulangi PIN Baru</label>
+                <input type="password" inputmode="numeric" maxlength="6" id="new-pin-confirm" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="******">
+            </div>
+            <button class="w-full py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="Settings.changePin()">Simpan PIN Baru</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="absolute top-6 left-1/2 transform -translate-x-1/2 bg-surface text-text-main px-6 py-3 rounded-full shadow-lg border border-border z-[100] flex items-center gap-2 opacity-0 pointer-events-none transition-all duration-300 translate-y-[-20px] max-w-[90%]">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-500 flex-shrink-0"></i>
+        <span class="text-sm font-semibold" id="toast-msg">Berhasil!</span>
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
