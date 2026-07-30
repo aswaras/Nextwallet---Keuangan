@@ -90,6 +90,10 @@ function ensureSheet(ss, name, headers) {
 }
 
 // ================== ENTRY POINTS ==================
+function doOptions(e) {
+  return ContentService.createTextOutput('');
+}
+
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || 'getAll';

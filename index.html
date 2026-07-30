@@ -50,6 +50,17 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- ====================================================================
+         KONFIGURASI BACKEND (WAJIB DIISI)
+         Tempel URL Web App hasil Deploy Google Apps Script (Code.gs) di sini.
+         Contoh: "https://script.google.com/macros/s/AKfycb..../exec"
+         ==================================================================== -->
+    <script>
+        window.NEXWALLET_CONFIG = {
+            API_URL: "https://script.google.com/macros/s/AKfycbwOyHFr11Zdx1QjUox2zXHhEwYv9HuJOjfjai9exmOPBWeEKeZVQJaCQwGyPdqGxacdbQ/exec"
+        };
+    </script>
+
     <style>
         :root {
             --color-theme: #3b82f6;
@@ -408,12 +419,15 @@
                     <div class="p-4 flex justify-between items-center">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center"><i data-lucide="server" class="w-4 h-4"></i></div>
-                            <span class="font-medium">URL Backend (Apps Script)</span>
+                            <div>
+                                <span class="font-medium block">Koneksi Backend</span>
+                                <span class="text-xs text-text-muted" id="api-status-text">Mengecek...</span>
+                            </div>
                         </div>
+                        <button class="text-theme text-xs font-semibold whitespace-nowrap" onclick="Sync.testConnection()">Tes Koneksi</button>
                     </div>
-                    <div class="px-4 pb-4 flex gap-2">
-                        <input type="text" id="api-url-input" placeholder="https://script.google.com/macros/s/xxx/exec" class="flex-1 bg-background rounded-xl p-3 text-xs border-none outline-none">
-                        <button class="px-4 rounded-xl bg-theme text-white text-sm font-bold" onclick="Settings.saveApiUrl()">Simpan</button>
+                    <div class="px-4 pb-4 hidden" id="api-debug-box">
+                        <div class="bg-background rounded-xl p-3 text-[11px] font-mono text-text-muted break-all" id="api-debug-text"></div>
                     </div>
                 </div>
 

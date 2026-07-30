@@ -105,4 +105,3 @@ Service worker (`sw.js`) meng-cache file inti aplikasi sehingga tetap bisa dibuk
 - Request ke Apps Script dikirim sebagai `POST` dengan `Content-Type: text/plain` agar tidak memicu CORS preflight (keterbatasan umum Apps Script Web App).
 - Foto struk disimpan sementara sebagai base64 lokal; saat backend aktif, disimpan permanen di Google Drive folder **"NexWallet Receipts"** melalui aksi `uploadReceipt` (opsional, bisa dikembangkan lebih lanjut sesuai kebutuhan).
 - Untuk multi-user sungguhan (banyak akun berbeda), tambahkan Apps Script menjadi multi-spreadsheet per user (saat ini didesain single-user/single-spreadsheet, cocok untuk pemakaian pribadi/UMKM kecil).
-"# Nextwallet---Keuangan" 

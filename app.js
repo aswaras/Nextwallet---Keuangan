@@ -84,7 +84,14 @@ const Sync = {
     flushing: false,
     retryTimer: null,
 
-    getApiUrl() { return localStorage.getItem(this.URL_KEY) || ''; },
+    getApiUrl() {
+        // Prioritas: override manual di localStorage (jika pernah diset) > konfigurasi di index.html
+        const stored = localStorage.getItem(this.URL_KEY);
+        if (stored) return stored;
+        const fromConfig = (window.NEXWALLET_CONFIG && window.NEXWALLET_CONFIG.API_URL) || '';
+        if (!fromConfig || fromConfig.indexOf('PASTE_URL_DEPLOY_APPS_SCRIPT_DISINI') !== -1) return '';
+        return fromConfig.trim();
+    },
     setApiUrl(url) { localStorage.setItem(this.URL_KEY, url.trim()); },
 
     loadQueue() {
@@ -103,30 +110,94 @@ const Sync = {
         this._debounce = setTimeout(() => this.flushQueue(), 400);
     },
 
+    lastStatus: 'idle',
+
     setIndicator(mode) {
+        this.lastStatus = mode;
         const el = document.getElementById('sync-indicator');
-        if (!el) return;
-        el.classList.remove('spin', 'ok', 'err', 'off');
-        const icon = el.querySelector('i');
-        if (mode === 'syncing') {
-            el.classList.add('show', 'spin');
-            icon.setAttribute('data-lucide', 'loader-2');
-        } else if (mode === 'ok') {
-            el.classList.add('show', 'ok');
-            icon.setAttribute('data-lucide', 'check');
-            setTimeout(() => el.classList.remove('show'), 1500);
-        } else if (mode === 'err') {
-            el.classList.add('show', 'err');
-            icon.setAttribute('data-lucide', 'cloud-off');
-            setTimeout(() => el.classList.remove('show'), 2500);
-        } else if (mode === 'off') {
-            el.classList.add('show', 'off');
-            icon.setAttribute('data-lucide', 'cloud-off');
-            setTimeout(() => el.classList.remove('show'), 1500);
-        } else {
-            el.classList.remove('show');
+        if (el) {
+            el.classList.remove('spin', 'ok', 'err', 'off');
+            const icon = el.querySelector('i');
+            if (mode === 'syncing') {
+                el.classList.add('show', 'spin');
+                icon.setAttribute('data-lucide', 'loader-2');
+            } else if (mode === 'ok') {
+                el.classList.add('show', 'ok');
+                icon.setAttribute('data-lucide', 'check');
+                setTimeout(() => el.classList.remove('show'), 1500);
+            } else if (mode === 'err') {
+                el.classList.add('show', 'err');
+                icon.setAttribute('data-lucide', 'cloud-off');
+                setTimeout(() => el.classList.remove('show'), 2500);
+            } else if (mode === 'off') {
+                el.classList.add('show', 'off');
+                icon.setAttribute('data-lucide', 'cloud-off');
+                setTimeout(() => el.classList.remove('show'), 1500);
+            } else {
+                el.classList.remove('show');
+            }
+            if (window.lucide) lucide.createIcons();
         }
-        if (window.lucide) lucide.createIcons();
+        // Live-update status text kalau halaman Settings sedang terbuka
+        const page = document.getElementById('page-settings');
+        if (page && !page.classList.contains('hidden')) Settings.renderPage();
+    },
+
+    async testConnection() {
+        const box = document.getElementById('api-debug-box');
+        const debugText = document.getElementById('api-debug-text');
+        box.classList.remove('hidden');
+        debugText.innerText = 'Menghubungi server...';
+
+        const url = this.getApiUrl();
+        if (!url) {
+            debugText.innerText = '❌ API_URL belum diisi di index.html (masih placeholder "PASTE_URL_DEPLOY_APPS_SCRIPT_DISINI").';
+            return;
+        }
+
+        try {
+            const res = await fetch(url + '?action=getAll', { method: 'GET' });
+            const rawText = await res.text();
+
+            let json;
+            try { json = JSON.parse(rawText); }
+            catch (parseErr) {
+                debugText.innerText =
+                    `❌ Respons server BUKAN JSON (kemungkinan besar salah setting akses deployment).\n\n` +
+                    `Status HTTP: ${res.status}\n` +
+                    `Cuplikan respons:\n${rawText.slice(0, 300)}\n\n` +
+                    `PERBAIKAN: Buka Apps Script → Deploy → Manage deployments → Edit (pensil) → ` +
+                    `pastikan "Who has access" = Anyone, lalu klik Deploy lagi (bikin versi baru).`;
+                this.setIndicator('err');
+                return;
+            }
+
+            if (!json.ok) {
+                debugText.innerText = `❌ Server merespons tapi ada error:\n${json.error}`;
+                this.setIndicator('err');
+                return;
+            }
+
+            debugText.innerText =
+                `✅ Terhubung!\n` +
+                `Dompet: ${json.data.wallets.length}\n` +
+                `Transaksi: ${json.data.transactions.length}\n` +
+                `Hutang/Piutang: ${json.data.debts.length}\n` +
+                `Waktu server: ${json.data.serverTime}`;
+            Store.replaceAll(json.data);
+            AppMain.renderAll(true);
+            this.setIndicator('ok');
+
+        } catch (err) {
+            debugText.innerText =
+                `❌ Gagal menghubungi server sama sekali.\n\n` +
+                `Pesan error: ${err.message}\n\n` +
+                `Kemungkinan penyebab:\n` +
+                `1. URL di index.html salah/typo\n` +
+                `2. Tidak ada koneksi internet\n` +
+                `3. Deployment Apps Script belum di-deploy ulang setelah edit kode`;
+            this.setIndicator('err');
+        }
     },
 
     async call(action, payload) {
@@ -967,7 +1038,25 @@ const Settings = {
         document.getElementById('settings-user-name').innerText = s.userName || 'Pengguna';
         document.getElementById('settings-avatar').innerText = (s.userName || 'P').charAt(0).toUpperCase();
         document.getElementById('theme-toggle').checked = document.documentElement.classList.contains('dark');
-        document.getElementById('api-url-input').value = Sync.getApiUrl();
+
+        const statusEl = document.getElementById('api-status-text');
+        if (statusEl) {
+            const url = Sync.getApiUrl();
+            if (!url) {
+                statusEl.innerText = 'Belum diatur (edit API_URL di index.html)';
+                statusEl.className = 'text-xs text-red-500';
+            } else if (Sync.lastStatus === 'ok') {
+                statusEl.innerText = 'Terhubung ✓';
+                statusEl.className = 'text-xs text-emerald-500';
+            } else if (Sync.lastStatus === 'err') {
+                statusEl.innerText = 'Gagal terhubung, akan dicoba lagi otomatis';
+                statusEl.className = 'text-xs text-red-500';
+            } else {
+                statusEl.innerText = 'Mengecek koneksi...';
+                statusEl.className = 'text-xs text-text-muted';
+            }
+        }
+
         const hint = document.getElementById('pwa-install-hint');
         if (window.matchMedia('(display-mode: standalone)').matches) {
             hint.innerText = 'Berjalan sebagai aplikasi terinstall ✓';
@@ -1005,13 +1094,6 @@ const Settings = {
         Store.saveLocal();
         Sync.enqueue('updateSettings', { themeColor: color });
         ChartModule.render();
-    },
-
-    saveApiUrl() {
-        const url = document.getElementById('api-url-input').value.trim();
-        Sync.setApiUrl(url);
-        showToast(url ? 'URL backend disimpan' : 'URL backend dikosongkan');
-        Sync.scheduleFlush();
     },
 
     async changePin() {
