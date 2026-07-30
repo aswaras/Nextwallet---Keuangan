@@ -1779,12 +1779,19 @@ const DebtList = {
             const entries = groups[name];
             const hutangTotal = entries.filter(d => d.type === 'hutang' && d.status !== 'Lunas').reduce((s, d) => s + Number(d.amount), 0);
             const piutangTotal = entries.filter(d => d.type === 'piutang' && d.status !== 'Lunas').reduce((s, d) => s + Number(d.amount), 0);
-            const allLunas = entries.every(d => d.status === 'Lunas');
+            const selisih = piutangTotal - hutangTotal; // + berarti dia berhutang ke kita (net), - berarti kita berhutang ke dia (net)
 
             let amountHtml = '';
-            if (hutangTotal > 0) amountHtml += `<p class="font-bold text-sm text-red-500">Hutang: ${formatRupiah(hutangTotal)}</p>`;
-            if (piutangTotal > 0) amountHtml += `<p class="font-bold text-sm text-emerald-500">Piutang: ${formatRupiah(piutangTotal)}</p>`;
-            if (!amountHtml) amountHtml = `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30">Lunas semua</span>`;
+            if (selisih === 0 && (hutangTotal > 0 || piutangTotal > 0)) {
+                // Hutang & piutang saling menutup (impas) tapi belum ditandai lunas satu-satu
+                amountHtml = `<p class="font-bold text-sm text-text-muted">Impas (Rp 0)</p>`;
+            } else if (selisih > 0) {
+                amountHtml = `<p class="font-bold text-sm text-emerald-500">Selisih: ${formatRupiah(selisih)}</p><p class="text-[10px] text-text-muted">Dia berhutang ke Anda</p>`;
+            } else if (selisih < 0) {
+                amountHtml = `<p class="font-bold text-sm text-red-500">Selisih: ${formatRupiah(-selisih)}</p><p class="text-[10px] text-text-muted">Anda berhutang ke dia</p>`;
+            } else {
+                amountHtml = `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30">Lunas semua</span>`;
+            }
 
             container.innerHTML += `
                 <div class="bg-surface border border-border p-4 rounded-2xl flex items-center justify-between shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onclick="DebtPersonModal.open(${idx})">
@@ -2007,8 +2014,19 @@ const DebtPersonModal = {
 
         const hutangTotal = entries.filter(d => d.type === 'hutang' && d.status !== 'Lunas').reduce((s, d) => s + Number(d.amount), 0);
         const piutangTotal = entries.filter(d => d.type === 'piutang' && d.status !== 'Lunas').reduce((s, d) => s + Number(d.amount), 0);
+        const selisih = piutangTotal - hutangTotal;
+
+        let selisihHtml;
+        if (selisih > 0) {
+            selisihHtml = `<p class="text-[10px] font-semibold text-emerald-600 uppercase mb-1">Selisih • Dia berhutang ke Anda</p><p class="font-bold text-lg text-emerald-600">${formatRupiah(selisih)}</p>`;
+        } else if (selisih < 0) {
+            selisihHtml = `<p class="text-[10px] font-semibold text-red-600 uppercase mb-1">Selisih • Anda berhutang ke dia</p><p class="font-bold text-lg text-red-600">${formatRupiah(-selisih)}</p>`;
+        } else {
+            selisihHtml = `<p class="text-[10px] font-semibold text-text-muted uppercase mb-1">Selisih</p><p class="font-bold text-lg text-text-muted">Rp 0 (Impas)</p>`;
+        }
 
         document.getElementById('debt-person-summary').innerHTML = `
+            <div class="col-span-2 bg-background rounded-2xl p-4 text-center border-2 border-theme/20">${selisihHtml}</div>
             <div class="bg-red-50 dark:bg-red-900/10 rounded-2xl p-3">
                 <p class="text-[10px] font-semibold text-red-500 uppercase mb-1">Total Hutang</p>
                 <p class="font-bold text-sm">${formatRupiah(hutangTotal)}</p>
@@ -2321,8 +2339,11 @@ const App = {
             alert('Terjadi error saat memuat aplikasi: ' + e.message + '\n\nCoba refresh halaman. Jika masih terjadi, buka Console (F12) untuk detail.');
         }
 
-        // Registrasi service worker & manifest sekarang ditangani oleh PWA_BOOTSTRAP
-        // di bagian bawah file ini (lihat dekat penutup </body>) — supaya tetap 1 file saja.
+        // Catatan: Service Worker TIDAK dipakai di versi single-file ini, karena
+        // Chrome/browser modern menolak mendaftarkan Service Worker dari kode yang
+        // "dibungkus" jadi satu file (Blob URL) -- ini batasan keamanan browser,
+        // bukan sesuatu yang bisa diakali dari sisi kode. Manifest (untuk tombol
+        // "Install App") tetap jalan normal lewat PWA_BOOTSTRAP di bawah.
 
         // Background sync starts immediately, never blocks the UI
         try {
@@ -2338,13 +2359,17 @@ document.addEventListener('DOMContentLoaded', () => App.init());
 </script>
 
 <script>
-// ================== PWA BOOTSTRAP (manifest + service worker, semua inline) ==================
-// Supaya aplikasi tetap 1 file index.html saja tapi tetap bisa di-install (PWA):
-// manifest.json dan service worker dibuat sebagai Blob di memori lalu didaftarkan,
-// jadi tidak perlu file manifest.json / sw.js terpisah di server.
+// ================== PWA BOOTSTRAP (manifest inline, supaya tetap 1 file) ==================
+// CATATAN PENTING: Service Worker TIDAK dipakai di sini secara sengaja.
+// Chrome (dan browser lain) MENOLAK mendaftarkan Service Worker yang berasal dari
+// Blob URL / data URL -- ini pembatasan keamanan bawaan browser, error yang muncul
+// biasanya: "Failed to register a ServiceWorker: The URL protocol ... is not supported."
+// Karena itu, versi single-file ini HANYA memasang manifest (cukup untuk tombol
+// "Install App" / "Add to Home Screen" di Chrome versi modern), tanpa klaim
+// dukungan offline penuh. Kalau butuh caching offline yang solid, service worker
+// WAJIB berupa file .js terpisah yang disajikan lewat URL http(s) asli.
 (function () {
     try {
-        // Ikon dibuat sebagai SVG data URI (tidak perlu file gambar terpisah)
         var ICON_SVG = 'data:image/svg+xml;base64,' + btoa(
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">' +
             '<rect width="200" height="200" rx="40" fill="#3b82f6"/>' +
@@ -2353,7 +2378,6 @@ document.addEventListener('DOMContentLoaded', () => App.init());
             '</svg>'
         );
 
-        // ---- MANIFEST ----
         var manifest = {
             name: "NexWallet - Modern Finance",
             short_name: "NexWallet",
@@ -2379,41 +2403,8 @@ document.addEventListener('DOMContentLoaded', () => App.init());
         appleTouchLink.rel = 'apple-touch-icon';
         appleTouchLink.href = ICON_SVG;
         document.head.appendChild(appleTouchLink);
-
-        // ---- SERVICE WORKER (network-first untuk halaman utama, supaya update selalu kepakai) ----
-        if ('serviceWorker' in navigator) {
-            var scopePath = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1) || './';
-            var swSource = [
-                "const CACHE_NAME = 'nexwallet-singlefile-v1';",
-                "const PAGE_URL = self.registration.scope;",
-                "self.addEventListener('install', (e) => {",
-                "  self.skipWaiting();",
-                "  e.waitUntil(fetch(PAGE_URL, { cache: 'no-store' }).then((res) => caches.open(CACHE_NAME).then((c) => c.put(PAGE_URL, res))).catch(() => {}));",
-                "});",
-                "self.addEventListener('activate', (e) => {",
-                "  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));",
-                "  self.clients.claim();",
-                "});",
-                "self.addEventListener('fetch', (event) => {",
-                "  const url = new URL(event.request.url);",
-                "  if (url.origin !== self.location.origin) return;",
-                "  if (event.request.mode !== 'navigate') return;",
-                "  event.respondWith(",
-                "    fetch(event.request, { cache: 'no-store' })",
-                "      .then((res) => { caches.open(CACHE_NAME).then((c) => c.put(PAGE_URL, res.clone())); return res; })",
-                "      .catch(() => caches.match(PAGE_URL))",
-                "  );",
-                "});"
-            ].join('\n');
-
-            var swUrl = URL.createObjectURL(new Blob([swSource], { type: 'application/javascript' }));
-            window.addEventListener('load', function () {
-                navigator.serviceWorker.register(swUrl, { scope: scopePath })
-                    .catch(function (err) { console.warn('SW register failed (PWA install mungkin tidak tersedia):', err); });
-            });
-        }
     } catch (e) {
-        console.warn('PWA bootstrap gagal (aplikasi tetap jalan normal tanpa install PWA):', e);
+        console.warn('PWA bootstrap gagal (aplikasi tetap jalan normal tanpa fitur install):', e);
     }
 })();
 </script>
