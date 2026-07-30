@@ -5,6 +5,65 @@
      tanpa pernah memblokir layar. Hanya indikator kecil di pojok kanan atas.
    ========================================================================== */
 
+// ================== SAFE ICON REFRESH (anti-freeze) ==================
+// Sebelumnya banyak fungsi memanggil lucide.createIcons() langsung.
+// Kalau CDN lucide gagal/lambat dimuat, baris itu error dan MEMBATALKAN
+// sisa kode setelahnya (modal tidak tertutup, list tidak ter-refresh,
+// terlihat seperti tombol "beku"). Sekarang semua dibungkus aman.
+function refreshIcons() {
+    try {
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+            lucide.createIcons();
+        }
+    } catch (e) {
+        console.warn('Icon render gagal (diabaikan, tidak menghentikan aplikasi):', e);
+    }
+}
+
+// Global safety net: kalau ada error JS tak terduga di mana pun,
+// jangan biarkan aplikasi diam membeku tanpa penjelasan.
+window.addEventListener('error', (e) => {
+    console.error('Uncaught error:', e.error || e.message);
+    try {
+        const toast = document.getElementById('toast');
+        if (toast) showToast('Terjadi error: ' + (e.message || 'lihat console'), true);
+    } catch (_) { /* ignore */ }
+});
+
+// ================== FORMAT NOMINAL (titik pemisah ribuan, contoh 1.000.000) ==================
+const NumberFormat = {
+    // Ambil angka murni dari string berformat, mis. "1.000.000" -> 1000000
+    raw(str) {
+        if (str === null || str === undefined) return 0;
+        const digits = String(str).replace(/\D/g, '');
+        return digits ? parseInt(digits, 10) : 0;
+    },
+    // Format angka murni jadi string bertitik, mis. 1000000 -> "1.000.000"
+    format(num) {
+        const n = Number(num) || 0;
+        return new Intl.NumberFormat('id-ID').format(n);
+    },
+    // Dipanggil tiap kali user mengetik di kolom nominal (oninput)
+    onInput(el) {
+        const cursorFromEnd = el.value.length - el.selectionStart;
+        const rawNum = this.raw(el.value);
+        el.value = rawNum ? this.format(rawNum) : '';
+        // Kembalikan posisi kursor kurang lebih di tempat semula
+        const pos = Math.max(0, el.value.length - cursorFromEnd);
+        el.setSelectionRange(pos, pos);
+    },
+    // Dipanggil dari JS saat mengisi nilai awal ke kolom (misal waktu buka form edit)
+    setValue(elId, num) {
+        const el = document.getElementById(elId);
+        if (el) el.value = num ? this.format(num) : '';
+    },
+    // Dipanggil dari JS saat mengambil nilai dari kolom untuk disimpan
+    getValue(elId) {
+        const el = document.getElementById(elId);
+        return el ? this.raw(el.value) : 0;
+    }
+};
+
 // ================== UTILS ==================
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() :
     'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -150,7 +209,7 @@ const Sync = {
             // Reset ke tag <i> murni tiap kali, karena lucide.createIcons() mengubah <i> jadi <svg>
             // (kalau tidak di-reset, querySelector('i') akan null di panggilan berikutnya dan crash)
             el.innerHTML = `<i data-lucide="${iconName}" class="w-3.5 h-3.5"></i>`;
-            if (window.lucide) lucide.createIcons();
+            if (window.lucide) refreshIcons();
         }
         // Live-update status text kalau halaman Settings sedang terbuka
         const page = document.getElementById('page-settings');
@@ -303,7 +362,7 @@ function showToast(message, isError = false) {
     }
     icon.setAttribute('data-lucide', isError ? 'alert-circle' : 'check-circle');
     icon.className = 'w-5 h-5 flex-shrink-0 ' + (isError ? 'text-red-500' : 'text-emerald-500');
-    lucide.createIcons();
+    refreshIcons();
     toast.classList.remove('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
     clearTimeout(toast._t);
     toast._t = setTimeout(() => toast.classList.add('opacity-0', 'translate-y-[-20px]', 'pointer-events-none'), 3000);
@@ -332,7 +391,7 @@ const UI = {
         const modal = document.getElementById(id);
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-        lucide.createIcons();
+        refreshIcons();
     },
     closeModal(id) {
         const modal = document.getElementById(id);
@@ -353,7 +412,7 @@ const UI = {
         this.balanceHidden = !this.balanceHidden;
         const icon = document.getElementById('balance-eye-icon');
         icon.setAttribute('data-lucide', this.balanceHidden ? 'eye-off' : 'eye');
-        lucide.createIcons();
+        refreshIcons();
         AppMain.renderHome();
     }
 };
@@ -382,7 +441,7 @@ const Nav = {
                 items[map[pageId]].classList.add('text-theme');
             }
         }
-        lucide.createIcons();
+        refreshIcons();
         if (pageId === 'page-home') setTimeout(() => ChartModule.render(), 100);
         if (pageId === 'page-settings') Settings.renderPage();
     }
@@ -496,7 +555,7 @@ const AppMain = {
         DebtList.render();
         Settings.renderPage();
         ChartModule.render();
-        lucide.createIcons();
+        refreshIcons();
     },
 
     renderHome() {
@@ -524,7 +583,7 @@ const AppMain = {
 
         this.renderWallets();
         this.renderRecentTransactions();
-        lucide.createIcons();
+        refreshIcons();
     },
 
     renderWallets() {
@@ -550,7 +609,7 @@ const AppMain = {
                     </div>
                 </div>`;
         });
-        lucide.createIcons();
+        refreshIcons();
     },
 
     renderRecentTransactions() {
@@ -597,7 +656,7 @@ const TrxList = {
         container.innerHTML = '';
         if (data.length === 0) {
             container.innerHTML = '<div class="empty-state"><i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2"></i><p class="text-sm">Belum ada transaksi.</p></div>';
-            lucide.createIcons();
+            refreshIcons();
             return;
         }
         data.forEach(trx => {
@@ -620,7 +679,7 @@ const TrxList = {
                     <div class="text-right"><p class="font-bold text-sm ${colorClass}">${amountSign}${formatRupiah(trx.amount)}</p></div>
                 </div>`;
         });
-        lucide.createIcons();
+        refreshIcons();
     }
 };
 
@@ -634,7 +693,7 @@ const TrxModal = {
         this.photoBase64 = null;
         document.getElementById('modal-trx-title').innerText = quick ? 'Catat Cepat' : 'Tambah Transaksi';
         document.getElementById('btn-delete-trx').classList.add('hidden');
-        document.getElementById('input-amount').value = '';
+        NumberFormat.setValue('input-amount', '');
         document.getElementById('input-date').value = todayStr();
         document.getElementById('input-time').value = nowTimeStr();
         document.getElementById('input-desc').value = '';
@@ -651,7 +710,7 @@ const TrxModal = {
         this.photoBase64 = null;
         document.getElementById('modal-trx-title').innerText = 'Edit Transaksi';
         document.getElementById('btn-delete-trx').classList.remove('hidden');
-        document.getElementById('input-amount').value = trx.amount;
+        NumberFormat.setValue('input-amount', trx.amount);
         document.getElementById('input-date').value = trx.date;
         document.getElementById('input-time').value = trx.time || '';
         document.getElementById('input-desc').value = trx.desc || '';
@@ -695,14 +754,14 @@ const TrxModal = {
     },
 
     save() {
-        const amount = document.getElementById('input-amount').value;
-        if (!amount || Number(amount) <= 0) { showToast('Masukkan nominal!', true); return; }
+        const amount = NumberFormat.getValue('input-amount');
+        if (!amount || amount <= 0) { showToast('Masukkan nominal!', true); return; }
         const walletId = document.getElementById('select-wallet').value;
         if (!walletId) { showToast('Pilih dompet dulu!', true); return; }
 
         const payload = {
             type: this.type,
-            amount: Number(amount),
+            amount: amount,
             category: document.getElementById('select-category').value,
             walletId: walletId,
             date: document.getElementById('input-date').value || todayStr(),
@@ -814,7 +873,7 @@ const WalletModal = {
                     <p class="font-bold text-sm">${formatRupiah(w.balance)}</p>
                 </div>`;
         });
-        lucide.createIcons();
+        refreshIcons();
     },
 
     openAdd() {
@@ -822,7 +881,7 @@ const WalletModal = {
         document.getElementById('wallet-form-title').innerText = 'Tambah Dompet';
         document.getElementById('wallet-name').value = '';
         document.getElementById('wallet-type').value = 'Bank';
-        document.getElementById('wallet-balance').value = '';
+        NumberFormat.setValue('wallet-balance', '');
         document.getElementById('btn-delete-wallet').classList.add('hidden');
         UI.openModal('modal-wallet-form');
     },
@@ -833,7 +892,7 @@ const WalletModal = {
         document.getElementById('wallet-form-title').innerText = 'Edit Dompet';
         document.getElementById('wallet-name').value = w.name;
         document.getElementById('wallet-type').value = w.type;
-        document.getElementById('wallet-balance').value = w.balance;
+        NumberFormat.setValue('wallet-balance', w.balance);
         document.getElementById('btn-delete-wallet').classList.remove('hidden');
         UI.openModal('modal-wallet-form');
     },
@@ -842,7 +901,7 @@ const WalletModal = {
         const name = document.getElementById('wallet-name').value.trim();
         if (!name) { showToast('Nama dompet wajib diisi!', true); return; }
         const type = document.getElementById('wallet-type').value;
-        const balance = Number(document.getElementById('wallet-balance').value) || 0;
+        const balance = NumberFormat.getValue('wallet-balance');
 
         if (this.editingId) {
             const w = Store.state.wallets.find(w => w.id === this.editingId);
@@ -903,7 +962,7 @@ const DebtList = {
         container.innerHTML = '';
         if (data.length === 0) {
             container.innerHTML = '<div class="empty-state"><i data-lucide="handshake" class="w-10 h-10 mx-auto mb-2"></i><p class="text-sm">Belum ada catatan hutang/piutang.</p></div>';
-            lucide.createIcons();
+            refreshIcons();
             return;
         }
         data.forEach(debt => {
@@ -927,7 +986,7 @@ const DebtList = {
                     </div>
                 </div>`;
         });
-        lucide.createIcons();
+        refreshIcons();
     }
 };
 
@@ -952,7 +1011,7 @@ const DebtModal = {
         this.editingId = null;
         document.getElementById('debt-form-title').innerText = 'Catat Hutang/Piutang';
         document.getElementById('debt-name').value = '';
-        document.getElementById('debt-amount').value = '';
+        NumberFormat.setValue('debt-amount', '');
         document.getElementById('debt-duedate').value = '';
         document.getElementById('debt-note').value = '';
         document.getElementById('btn-delete-debt').classList.add('hidden');
@@ -965,7 +1024,7 @@ const DebtModal = {
         this.editingId = id;
         document.getElementById('debt-form-title').innerText = 'Edit Hutang/Piutang';
         document.getElementById('debt-name').value = d.name;
-        document.getElementById('debt-amount').value = d.amount;
+        NumberFormat.setValue('debt-amount', d.amount);
         document.getElementById('debt-duedate').value = d.dueDate || '';
         document.getElementById('debt-note').value = d.note || '';
         document.getElementById('btn-delete-debt').classList.remove('hidden');
@@ -975,7 +1034,7 @@ const DebtModal = {
 
     save() {
         const name = document.getElementById('debt-name').value.trim();
-        const amount = Number(document.getElementById('debt-amount').value);
+        const amount = NumberFormat.getValue('debt-amount');
         if (!name || !amount) { showToast('Nama & nominal wajib diisi!', true); return; }
         const dueDate = document.getElementById('debt-duedate').value;
         const note = document.getElementById('debt-note').value;
@@ -1013,7 +1072,7 @@ const DebtModal = {
         this.payingId = id;
         document.getElementById('debt-pay-info').innerText =
             `${d.type === 'piutang' ? 'Menerima dari' : 'Membayar ke'} ${d.name} • Sisa ${formatRupiah(d.amount)}`;
-        document.getElementById('debt-pay-amount').value = d.amount;
+        NumberFormat.setValue('debt-pay-amount', d.amount);
         const sel = document.getElementById('debt-pay-wallet');
         sel.innerHTML = Store.state.wallets.map(w => `<option value="${w.id}">${w.name} (${formatRupiah(w.balance)})</option>`).join('');
         UI.openModal('modal-debt-pay');
@@ -1022,7 +1081,7 @@ const DebtModal = {
     pay() {
         const d = Store.state.debts.find(d => d.id === this.payingId);
         if (!d) return;
-        const payAmount = Number(document.getElementById('debt-pay-amount').value);
+        const payAmount = NumberFormat.getValue('debt-pay-amount');
         const walletId = document.getElementById('debt-pay-wallet').value;
         if (!payAmount || payAmount <= 0) { showToast('Masukkan jumlah!', true); return; }
 
@@ -1230,8 +1289,16 @@ function downloadFile(content, filename, mime) {
 const ChartModule = {
     instance: null,
     render() {
+        try {
+            this._render();
+        } catch (e) {
+            console.warn('Chart render gagal (diabaikan, tidak menghentikan aplikasi):', e);
+        }
+    },
+    _render() {
         const ctx = document.getElementById('mainChart');
         if (!ctx) return;
+        if (typeof Chart === 'undefined') { console.warn('Chart.js belum termuat, lewati render grafik.'); return; }
         if (this.instance) this.instance.destroy();
 
         const isDark = document.documentElement.classList.contains('dark');
@@ -1308,10 +1375,15 @@ const App = {
     },
 
     init() {
-        Store.loadLocal();
-        Settings.applyThemeFromSettings();
-        Pin.init();
-        lucide.createIcons();
+        try {
+            Store.loadLocal();
+            Settings.applyThemeFromSettings();
+            Pin.init();
+            refreshIcons();
+        } catch (e) {
+            console.error('App init error:', e);
+            alert('Terjadi error saat memuat aplikasi: ' + e.message + '\n\nCoba refresh halaman. Jika masih terjadi, buka Console (F12) untuk detail.');
+        }
 
         // Register service worker for PWA (installable + offline shell)
         if ('serviceWorker' in navigator) {
@@ -1321,7 +1393,11 @@ const App = {
         }
 
         // Background sync starts immediately, never blocks the UI
-        Sync.startBackgroundLoop();
+        try {
+            Sync.startBackgroundLoop();
+        } catch (e) {
+            console.error('Sync init error:', e);
+        }
     }
 };
 
