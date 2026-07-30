@@ -30,6 +30,34 @@ window.addEventListener('error', (e) => {
     } catch (_) { /* ignore */ }
 });
 
+// ================== ANTI DOBEL-KLIK ==================
+// Mencegah data tersimpan berulang kalau tombol Simpan/Bayar ditekan
+// berkali-kali (misalnya karena user kira aplikasi macet lalu tap ulang).
+const SubmitLock = {
+    active: {},
+    run(key, fn) {
+        if (this.active[key]) return;
+        this.active[key] = true;
+
+        // Feedback visual instan di tombol yang ditekan (redup sesaat),
+        // supaya user tahu tap-nya sudah terdeteksi dan tidak tap berkali-kali.
+        let btn = null;
+        try {
+            if (window.event && window.event.target) btn = window.event.target.closest('button');
+            if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+        } catch (_) { /* aman diabaikan */ }
+
+        try {
+            fn();
+        } finally {
+            setTimeout(() => {
+                this.active[key] = false;
+                if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            }, 800);
+        }
+    }
+};
+
 // ================== FORMAT NOMINAL (titik pemisah ribuan, contoh 1.000.000) ==================
 const NumberFormat = {
     // Ambil angka murni dari string berformat, mis. "1.000.000" -> 1000000
@@ -45,12 +73,23 @@ const NumberFormat = {
     },
     // Dipanggil tiap kali user mengetik di kolom nominal (oninput)
     onInput(el) {
-        const cursorFromEnd = el.value.length - el.selectionStart;
-        const rawNum = this.raw(el.value);
-        el.value = rawNum ? this.format(rawNum) : '';
-        // Kembalikan posisi kursor kurang lebih di tempat semula
-        const pos = Math.max(0, el.value.length - cursorFromEnd);
-        el.setSelectionRange(pos, pos);
+        // Guard anti re-entrant: cegah kejadian di beberapa browser/keyboard Android
+        // yang bisa memicu event 'input' berkali-kali beruntun saat value diubah,
+        // yang sebelumnya menyebabkan angka jadi dobel/berulang dan halaman terasa macet.
+        if (el._formatting) return;
+        el._formatting = true;
+        try {
+            const cursorFromEnd = el.value.length - (el.selectionStart ?? el.value.length);
+            const rawNum = this.raw(el.value);
+            const newValue = rawNum ? this.format(rawNum) : '';
+            if (el.value !== newValue) el.value = newValue;
+            try {
+                const pos = Math.max(0, el.value.length - cursorFromEnd);
+                el.setSelectionRange(pos, pos);
+            } catch (_) { /* beberapa browser tidak izinkan setSelectionRange, aman diabaikan */ }
+        } finally {
+            el._formatting = false;
+        }
     },
     // Dipanggil dari JS saat mengisi nilai awal ke kolom (misal waktu buka form edit)
     setValue(elId, num) {
@@ -172,6 +211,7 @@ const Sync = {
     enqueue(action, payload) {
         this.queue.push({ id: uuid(), action, payload, ts: Date.now() });
         this.saveQueue();
+        this.setIndicator('syncing'); // feedback instan: langsung muncul animasi kecil begitu data diinput
         this.scheduleFlush();
     },
 
@@ -754,6 +794,10 @@ const TrxModal = {
     },
 
     save() {
+        SubmitLock.run('trx-save', () => this._save());
+    },
+
+    _save() {
         const amount = NumberFormat.getValue('input-amount');
         if (!amount || amount <= 0) { showToast('Masukkan nominal!', true); return; }
         const walletId = document.getElementById('select-wallet').value;
@@ -898,6 +942,10 @@ const WalletModal = {
     },
 
     save() {
+        SubmitLock.run('wallet-save', () => this._save());
+    },
+
+    _save() {
         const name = document.getElementById('wallet-name').value.trim();
         if (!name) { showToast('Nama dompet wajib diisi!', true); return; }
         const type = document.getElementById('wallet-type').value;
@@ -1033,6 +1081,10 @@ const DebtModal = {
     },
 
     save() {
+        SubmitLock.run('debt-save', () => this._save());
+    },
+
+    _save() {
         const name = document.getElementById('debt-name').value.trim();
         const amount = NumberFormat.getValue('debt-amount');
         if (!name || !amount) { showToast('Nama & nominal wajib diisi!', true); return; }
@@ -1079,6 +1131,10 @@ const DebtModal = {
     },
 
     pay() {
+        SubmitLock.run('debt-pay', () => this._pay());
+    },
+
+    _pay() {
         const d = Store.state.debts.find(d => d.id === this.payingId);
         if (!d) return;
         const payAmount = NumberFormat.getValue('debt-pay-amount');
