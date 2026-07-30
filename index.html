@@ -510,7 +510,7 @@
                 <label class="block text-xs font-semibold text-text-muted mb-2 uppercase tracking-wider">Nominal</label>
                 <div class="flex items-center text-3xl font-bold text-text-main border-b-2 border-border pb-2 focus-within:border-theme transition">
                     <span class="text-text-muted mr-2">Rp</span>
-                    <input type="text" inputmode="numeric" placeholder="0" class="w-full bg-transparent border-none outline-none" id="input-amount" oninput="NumberFormat.onInput(this)">
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" class="w-full bg-transparent border-none outline-none" id="input-amount" oninput="NumberFormat.onInput(this)">
                 </div>
             </div>
 
@@ -600,7 +600,7 @@
             </div>
             <div class="mb-6">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Saldo Awal</label>
-                <input type="text" inputmode="numeric" id="wallet-balance" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" id="wallet-balance" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
             </div>
             <div class="flex gap-3">
                 <button id="btn-delete-wallet" class="hidden flex-1 py-3 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold" onclick="WalletModal.remove()">Hapus</button>
@@ -618,13 +618,21 @@
                 <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-debt-hutang" onclick="DebtModal.setType('hutang')">Hutang Saya</button>
                 <button class="flex-1 py-2 text-sm font-bold rounded-lg" id="btn-debt-piutang" onclick="DebtModal.setType('piutang')">Piutang</button>
             </div>
-            <div class="mb-4">
+            <div class="mb-4" id="debt-name-field-wrapper">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Nama</label>
-                <input type="text" id="debt-name" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="Nama orang/pihak">
+                <input type="text" id="debt-name" list="debt-name-datalist" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="Nama orang/pihak (ketik nama baru atau pilih yang sudah ada)">
+                <datalist id="debt-name-datalist"></datalist>
+            </div>
+            <div class="mb-4 hidden" id="debt-name-locked-wrapper">
+                <label class="block text-xs font-semibold text-text-muted mb-2">Untuk</label>
+                <div class="w-full bg-background rounded-xl p-3 text-sm font-bold flex items-center gap-2">
+                    <i data-lucide="user" class="w-4 h-4 text-theme"></i>
+                    <span id="debt-name-locked-label"></span>
+                </div>
             </div>
             <div class="mb-4">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Nominal</label>
-                <input type="text" inputmode="numeric" id="debt-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" id="debt-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
             </div>
             <div class="mb-4">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Jatuh Tempo</label>
@@ -649,13 +657,27 @@
             <p class="text-sm text-text-muted mb-4" id="debt-pay-info"></p>
             <div class="mb-4">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Jumlah Dibayar</label>
-                <input type="text" inputmode="numeric" id="debt-pay-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
+                <input type="text" inputmode="numeric" pattern="[0-9]*" id="debt-pay-amount" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none" placeholder="0" oninput="NumberFormat.onInput(this)">
             </div>
             <div class="mb-6">
                 <label class="block text-xs font-semibold text-text-muted mb-2">Dompet Tujuan</label>
                 <select id="debt-pay-wallet" class="w-full bg-background rounded-xl p-3 text-sm border-none outline-none"></select>
             </div>
             <button class="w-full py-4 bg-theme text-white rounded-2xl font-bold shadow-glow" onclick="DebtModal.pay()">Konfirmasi</button>
+        </div>
+    </div>
+
+    <!-- FULL MODAL: DETAIL ORANG (daftar semua hutang/piutang milik 1 nama) -->
+    <div id="modal-debt-person" class="absolute inset-0 bg-surface z-[80] hidden flex-col slide-up">
+        <div class="flex justify-between items-center p-4 border-b border-border">
+            <button onclick="UI.closeModal('modal-debt-person')" class="p-2 text-text-muted"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <h3 class="font-bold text-lg" id="debt-person-title">Nama</h3>
+            <button class="p-2 text-theme" onclick="DebtPersonModal.addNew()"><i data-lucide="plus" class="w-5 h-5"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
+            <div class="grid grid-cols-2 gap-3 mb-6" id="debt-person-summary"></div>
+            <p class="text-xs font-semibold text-text-muted mb-3 uppercase tracking-wider">Riwayat Catatan</p>
+            <div class="flex flex-col gap-3" id="debt-person-list"></div>
         </div>
     </div>
 
