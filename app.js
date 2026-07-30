@@ -117,25 +117,28 @@ const Sync = {
         const el = document.getElementById('sync-indicator');
         if (el) {
             el.classList.remove('spin', 'ok', 'err', 'off');
-            const icon = el.querySelector('i');
+            let iconName = 'loader-2';
             if (mode === 'syncing') {
                 el.classList.add('show', 'spin');
-                icon.setAttribute('data-lucide', 'loader-2');
+                iconName = 'loader-2';
             } else if (mode === 'ok') {
                 el.classList.add('show', 'ok');
-                icon.setAttribute('data-lucide', 'check');
+                iconName = 'check';
                 setTimeout(() => el.classList.remove('show'), 1500);
             } else if (mode === 'err') {
                 el.classList.add('show', 'err');
-                icon.setAttribute('data-lucide', 'cloud-off');
+                iconName = 'cloud-off';
                 setTimeout(() => el.classList.remove('show'), 2500);
             } else if (mode === 'off') {
                 el.classList.add('show', 'off');
-                icon.setAttribute('data-lucide', 'cloud-off');
+                iconName = 'cloud-off';
                 setTimeout(() => el.classList.remove('show'), 1500);
             } else {
                 el.classList.remove('show');
             }
+            // Reset ke tag <i> murni tiap kali, karena lucide.createIcons() mengubah <i> jadi <svg>
+            // (kalau tidak di-reset, querySelector('i') akan null di panggilan berikutnya dan crash)
+            el.innerHTML = `<i data-lucide="${iconName}" class="w-3.5 h-3.5"></i>`;
             if (window.lucide) lucide.createIcons();
         }
         // Live-update status text kalau halaman Settings sedang terbuka
@@ -279,10 +282,16 @@ const Sync = {
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     document.getElementById('toast-msg').innerText = message;
-    const icon = toast.querySelector('i');
+    let icon = toast.querySelector('i');
+    if (!icon) {
+        // lucide.createIcons() sebelumnya sudah mengubah <i> jadi <svg>; buat ulang tag <i>
+        const svg = toast.querySelector('svg');
+        if (svg) svg.remove();
+        icon = document.createElement('i');
+        toast.insertBefore(icon, toast.firstChild);
+    }
     icon.setAttribute('data-lucide', isError ? 'alert-circle' : 'check-circle');
-    icon.classList.remove('text-emerald-500', 'text-red-500');
-    icon.classList.add(isError ? 'text-red-500' : 'text-emerald-500');
+    icon.className = 'w-5 h-5 flex-shrink-0 ' + (isError ? 'text-red-500' : 'text-emerald-500');
     lucide.createIcons();
     toast.classList.remove('opacity-0', 'translate-y-[-20px]', 'pointer-events-none');
     clearTimeout(toast._t);
