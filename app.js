@@ -68,10 +68,21 @@ const Store = {
         localStorage.setItem(this.KEY, JSON.stringify(this.state));
     },
     replaceAll(data) {
+        const oldPinHash = this.state.settings.pinHash;
+
         this.state.wallets = data.wallets || this.state.wallets;
         this.state.transactions = data.transactions || this.state.transactions;
         this.state.debts = data.debts || this.state.debts;
         this.state.settings = Object.assign({}, this.state.settings, data.settings || {});
+
+        // GUARD PENTING: jangan pernah biarkan PIN yang sudah diset lokal
+        // hilang/kosong gara-gara data settings dari server masih kosong/belum ke-update.
+        // Kalau ini terjadi, kirim ulang PIN lokal ke server supaya server ikut benar.
+        if (!this.state.settings.pinHash && oldPinHash) {
+            this.state.settings.pinHash = oldPinHash;
+            if (typeof Sync !== 'undefined') Sync.enqueue('updateSettings', { pinHash: oldPinHash });
+        }
+
         this.saveLocal();
     }
 };
